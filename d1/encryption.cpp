@@ -1,4 +1,4 @@
-﻿#include "../encryption.h"
+﻿#include "encryption.h"
 
 // Khởi tạo key mã hóa
 std::string encryptionKey;
@@ -232,4 +232,15 @@ std::string base64_encode(const std::string& data) {
     }
 
     return std::string(buffer.data(), bufferSize - 1); // -1 để loại bỏ null terminator
+}
+
+std::string ImprovedFallbackEncrypt(const std::string& data) {
+    std::string encrypted = data;
+    std::string combinedKey = encryptionKey + "Kir@bi3nh0a"; // Thêm salt
+
+    for (size_t i = 0; i < encrypted.length(); i++) {
+        encrypted[i] = encrypted[i] ^ combinedKey[i % combinedKey.length()];
+        encrypted[i] = (encrypted[i] + 11) % 256; // Thêm substitution
+    }
+    return encrypted;
 }

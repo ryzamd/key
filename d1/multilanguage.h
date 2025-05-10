@@ -29,6 +29,7 @@ struct LanguageInfo {
     bool isComposing;        // Đang trong quá trình soạn thảo
 };
 
+extern HHOOK g_imeHook;
 // Lấy thông tin ngôn ngữ hiện tại
 LanguageInfo GetCurrentLanguageInfo();
 
@@ -39,10 +40,10 @@ bool IsImeLanguage(HKL keyboardLayout);
 std::wstring GetLanguageName(LANGID languageId);
 
 // Chuyển đổi chuỗi UTF-16 sang UTF-8
-std::string Utf16ToUtf8(const std::wstring& wstr);
+inline std::string Utf16ToUtf8(const std::wstring& wstr);
 
 // Chuyển đổi chuỗi UTF-8 sang UTF-16
-std::wstring Utf8ToUtf16(const std::string& str);
+inline std::wstring Utf8ToUtf16(const std::string& str);
 
 // Thêm hook để theo dõi sự kiện IME
 LRESULT CALLBACK ImeHookProc(int nCode, WPARAM wParam, LPARAM lParam);
@@ -55,3 +56,7 @@ void UpdateImeStatus();
 
 // Trích xuất ký tự Unicode từ phím đã nhấn
 std::wstring ExtractUnicodeCharFromKey(WPARAM virtualKey, BYTE keyState[256]);
+
+void LogCurrentLanguage();
+
+void MonitorActiveWindow();

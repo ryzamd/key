@@ -1,4 +1,4 @@
-﻿#include "../antidebug.h"
+﻿#include "antidebug.h"
 #include <shellapi.h> 
 
 bool IsBeingDebugged() {

