@@ -1,0 +1,10 @@
+﻿  antidebug.cpp
+  d1.cpp
+  encryption.cpp
+  exfiltration.cpp
+  keylogger.cpp
+  multilanguage.cpp
+  persistence.cpp
+  utils.cpp
+  Generating Code...
+  d1.vcxproj -> D:\CSharp\d1\Debug\d1.exe
